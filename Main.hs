@@ -12,8 +12,8 @@ import qualified Data.Text.Lazy.IO as TL
 import Data.Maybe (catMaybes)
 import Control.Applicative
 import Control.Monad (when)
-import Data.ByteString.Lazy as BL hiding (map, intersperse)
-import Data.ByteString.Lazy.Char8 as BL8
+import qualified Data.ByteString.Lazy as BL hiding (map, intersperse)
+import qualified Data.ByteString.Lazy.Char8 as BL8
 import qualified Data.ByteString.Lazy.Char8 as BS
 import Data.Attoparsec.Lazy as Atto hiding (Result)
 import Data.Attoparsec.ByteString.Char8 (endOfLine, sepBy)
@@ -26,6 +26,7 @@ import qualified Data.Text.Lazy.Builder as B
 import qualified Data.Text.Lazy.Builder.Int as B
 import qualified Data.Text.Lazy.Builder.RealFloat as B
 import qualified Options.Applicative as O
+import Data.List (foldl1')
 
 data Options = Options deriving Show
 
@@ -40,13 +41,19 @@ opts = O.info (O.helper <*> parseOpts)
 
 main = do
   Options{..} <- O.execParser opts
-  x <- BL.getContents 
+  s <- BL.getContents 
   let xs :: [Value]
-      xs = decodeStream x
-      xs' = xs -- replace
-  mapM_ (BL8.putStrLn . encode) xs'
+      xs = decodeStream s
+      x :: Value
+      x = foldl1' mergeValue xs -- replace
+  BL8.putStrLn . encode $ x
    
 
+mergeValue :: Value -> Value -> Value
+mergeValue acc x = x
+
+
+-- ^ Utility for deserialization
 
 decodeStream :: (FromJSON a) => BL.ByteString -> [a]
 decodeStream bs = case decodeWith json bs of
