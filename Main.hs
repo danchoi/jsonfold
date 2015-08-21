@@ -18,6 +18,7 @@ import qualified Data.ByteString.Lazy.Char8 as BS
 import Data.Attoparsec.Lazy as Atto hiding (Result)
 import Data.Attoparsec.ByteString.Char8 (endOfLine, sepBy)
 import qualified Data.Attoparsec.Text as AT
+import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Vector as V
 import Data.Scientific 
@@ -46,24 +47,34 @@ main = do
   let xs :: [Value]
       xs = decodeStream s
       x :: Value
-      x = foldl1' mergeValue xs 
+      x = foldl1' (mergeValue "") xs 
   BL8.putStrLn . encode $ x
    
 
 -- The first parameter is the accumulator
-mergeValue :: Value -> Value -> Value
-mergeValue (Object v) (Object v') = 
+mergeValue :: Text -> Value -> Value -> Value
+mergeValue key (Object v) (Object v') = 
     -- merge all the keys and recursively merged values
-    Object $ HM.unionWith mergeValue v' v 
-mergeValue (String v) (String v') = String (max v v')
-mergeValue (Bool v) (Bool v') = Bool (max v v')
-mergeValue (Number v) (Number v') = Number (max v v') -- ?
-mergeValue x Null = x
-mergeValue Null x = x
-mergeValue (Array v) (Array v') = if V.length v > V.length v' then Array v else Array v'
--- Note: we can merge the arrays, but not sort the result, because Value is not
--- a member of Ord
+    Object $ unionWithKey mergeValue v' v 
 
+mergeValue key (String v) (String v') = String (max v v')
+mergeValue key (Bool v) (Bool v') = Bool (max v v')
+mergeValue key (Number v) (Number v') = Number (max v v') -- ?
+mergeValue key x Null = x
+mergeValue key Null x = x
+mergeValue key (Array v) (Array v') = if V.length v > V.length v' then Array v else Array v'
+-- TODO we can merge the arrays and nub ? Won't work on version
+
+unionWithKey :: (Text -> Value -> Value -> Value) -> HashMap Text Value -> HashMap Text Value -> HashMap Text Value
+unionWithKey f o o' = 
+      let o'MergedMatchingKeys = HM.mapWithKey f' o' 
+          oUniqueKeys = HM.difference o o'
+      in o'MergedMatchingKeys `HM.union` oUniqueKeys
+    where f' :: Text -> Value -> Value
+          f' key v | HM.member key o = mergeValue key v ((HM.!) o key)
+                   | otherwise       = v
+
+-- For reference: mapWithKey :: (k -> v1 -> v2) -> HashMap k v1 -> HashMap k v2
 
 -- ^ Utility for deserialization
 
