@@ -46,7 +46,7 @@ main = do
   let xs :: [Value]
       xs = decodeStream s
       x :: Value
-      x = foldl1' mergeValue xs -- replace
+      x = foldl1' mergeValue xs 
   BL8.putStrLn . encode $ x
    
 
@@ -54,7 +54,7 @@ main = do
 mergeValue :: Value -> Value -> Value
 mergeValue (Object v) (Object v') = 
     -- merge all the keys and recursively merged values
-    Object $ HM.unionWith mergeValue v v'
+    Object $ HM.unionWith mergeValue v' v 
 mergeValue (String v) (String v') = String (max v v')
 mergeValue (Bool v) (Bool v') = Bool (max v v')
 mergeValue (Number v) (Number v') = Number (max v v') -- ?
