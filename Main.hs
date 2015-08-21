@@ -26,7 +26,8 @@ import qualified Data.Text.Lazy.Builder as B
 import qualified Data.Text.Lazy.Builder.Int as B
 import qualified Data.Text.Lazy.Builder.RealFloat as B
 import qualified Options.Applicative as O
-import Data.List (foldl1')
+import Data.List (foldl', foldl1', sort, nub)
+import Data.Monoid
 
 data Options = Options deriving Show
 
@@ -37,7 +38,7 @@ opts = O.info (O.helper <*> parseOpts)
           (O.fullDesc 
             <> O.progDesc "Merge JSON objects"
             <> O.header "jsonmerge"
-            <> O.footer "See https://github.com/danchoi/merge for more information.")
+            <> O.footer "See https://github.com/danchoi/jsonfold for more information.")
 
 main = do
   Options{..} <- O.execParser opts
@@ -49,8 +50,19 @@ main = do
   BL8.putStrLn . encode $ x
    
 
+-- The first parameter is the accumulator
 mergeValue :: Value -> Value -> Value
-mergeValue acc x = x
+mergeValue (Object v) (Object v') = 
+    -- merge all the keys and recursively merged values
+    Object $ HM.unionWith mergeValue v v'
+mergeValue (String v) (String v') = String (max v v')
+mergeValue (Bool v) (Bool v') = Bool (max v v')
+mergeValue (Number v) (Number v') = Number (max v v') -- ?
+mergeValue x Null = x
+mergeValue Null x = x
+mergeValue (Array v) (Array v') = if V.length v > V.length v' then Array v else Array v'
+-- Note: we can merge the arrays, but not sort the result, because Value is not
+-- a member of Ord
 
 
 -- ^ Utility for deserialization
