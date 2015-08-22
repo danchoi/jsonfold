@@ -46,9 +46,10 @@ data MergeValue = MergeObject (HashMap Text MergeValue)
 
 -- If all values are equal (incl. all null) or there is only one value, then no reduction strategy is used. 
 
+-- Max and Min compare length when applied to String, Array, or Object (number of keys)
+
 data ReductionStrategy = 
-       AllSame | Empty | First | Last | Max | Min | MinNotNull 
-       | Majority | Longest | Shortest | Union | Intersect
+       AllSame | Empty | First | Last | Max | Min | MinNotNull | Majority | Concat | NubConcat
     deriving Show
 
 type Path = [Text]
@@ -115,21 +116,24 @@ applyStrategy MinNotNull vs = minValue [v | v <- vs, v /= Null]
 applyStrategy Majority vs = 
       let vs' = reverse $ sortBy (compare `on` length) $ group $ sort vs 
       in take 1 . concat $ vs'
-applyStrategy Longest  vs = vs 
-applyStrategy Shortest vs = vs 
-applyStrategy Union vs = vs 
-applyStrategy Intersect vs = vs 
+applyStrategy Concat vs = [ Array . V.fromList . concat $ [ V.toList v  | Array v <- vs ] ]
+applyStrategy NubConcat vs = [ Array . V.fromList . nub . concat $ [ V.toList v  | Array v <- vs ] ]
 
 -- class  (Eq a) => Ord a  where
 --  (<), (<=), (>=), (>)  :: a -> a -> Bool
 --    max, min              :: a -> a -> a
 
 instance Ord Value where
-    String x <= String y = x <= y
+    String x <= String y = T.length x <= T.length y
     Number x <= Number y = x <= y
     Bool x   <= Bool y   = x <= y
     Null     <= _        = True
-    x <= y  = error $ "Can't apply Ord to " ++ show (x, y)
+    Array xs <= Array ys = V.length xs <= V.length ys
+    Object xs <= Object ys = 
+        let x = length . HM.keys $ xs 
+            y = length . HM.keys $ ys 
+        in x <= y  -- just need something that doesn't blow up
+    x <= y = error $ "Can't compare unlike Value types: " ++ show (x,y)
 
 maxValue :: [Value] -> [Value]
 maxValue vs = [ maximum vs ]
