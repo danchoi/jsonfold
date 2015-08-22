@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, QuasiQuotes, RecordWildCards #-}
 module Main where
 import Data.Aeson
-import Data.Monoid
+import Data.Monoid (mempty, (<>))
 import qualified Data.Map.Strict as M
 import Data.Text (Text)
 import qualified Data.Text.Encoding as T (decodeUtf8)
@@ -15,7 +15,7 @@ import Control.Monad (when)
 import qualified Data.ByteString.Lazy as BL hiding (map, intersperse)
 import qualified Data.ByteString.Lazy.Char8 as BL8
 import qualified Data.ByteString.Lazy.Char8 as BS
-import Data.Attoparsec.Lazy as Atto hiding (Result)
+import qualified Data.Attoparsec.Lazy as Atto hiding (Result)
 import Data.Attoparsec.ByteString.Char8 (endOfLine, sepBy)
 import qualified Data.Attoparsec.Text as AT
 import Data.HashMap.Lazy (HashMap)
@@ -27,8 +27,7 @@ import qualified Data.Text.Lazy.Builder as B
 import qualified Data.Text.Lazy.Builder.Int as B
 import qualified Data.Text.Lazy.Builder.RealFloat as B
 import qualified Options.Applicative as O
-import Data.List (foldl', foldl1', sort, nub)
-import Data.Monoid
+import Data.List (foldl', foldl1', sort, nub, maximum, minimum)
 
 data Options = Options deriving Show
 
@@ -48,7 +47,8 @@ data MergeValue = MergeObject (HashMap Text MergeValue)
 -- If all values are equal (incl. all null) or there is only one value, then no reduction strategy is used. 
 
 data ReductionStrategy = 
-          First | Last | Majority | Max | Min | MinNull | Longest | Shortest | Union | Intersect
+       AllSame | Empty | First | Last | Max | Min | MinNotNull 
+       | Majority | Longest | Shortest | Union | Intersect
     deriving Show
 
 type Path = [Text]
@@ -98,9 +98,32 @@ reduceValue rs ks (MergeLeaf vs) =
     in reduceLeafValues r ks vs 
 
 reduceLeafValues :: ReductionStrategy -> Path -> [Value] -> ReductionValue
-reduceLeafValues r ks vs = ReductionLeaf vs v r
-    where v = Null -- CHANGEME
+reduceLeafValues r ks vs 
+    | length (nub vs) == 1 = ReductionLeaf vs (head $ nub vs) AllSame
+    | null vs              = ReductionLeaf vs Null Empty
+    | otherwise = ReductionLeaf vs v r
+        where v = Null -- CHANGEME
 
+applyStrategy :: ReductionStrategy -> [Value] -> [Value]
+applyStrategy AllSame vs = nub vs 
+applyStrategy Empty   vs = if null vs then [Null] else vs
+applyStrategy First   vs = take 1 vs 
+applyStrategy Last    vs = take 1 $ reverse vs
+applyStrategy Max     vs = maxValues vs
+applyStrategy Min     vs = maxValues vs
+applyStrategy MinNotNull vs = minValues [v | v <- vs, v /= Null] 
+applyStrategy Majority vs = vs  -- TODO
+applyStrategy Longest  vs = vs 
+applyStrategy Shortest vs = vs 
+applyStrategy Union vs = vs 
+applyStrategy Intersect vs = vs 
+
+
+maxValues :: [Value] -> [Value]
+maxValues vs = vs
+
+minValues :: [Value] -> [Value]
+minValues vs = vs
 
 ------------------------------------------------------------------------
 
@@ -122,7 +145,7 @@ decodeStream bs = case decodeWith json bs of
     (Just x, xs) -> x:(decodeStream xs)
     (Nothing, _) -> []
 
-decodeWith :: (FromJSON a) => Parser Value -> BL.ByteString -> (Maybe a, BL.ByteString)
+decodeWith :: (FromJSON a) => Atto.Parser Value -> BL.ByteString -> (Maybe a, BL.ByteString)
 decodeWith p s =
     case Atto.parse p s of
       Atto.Done r v -> f v r
