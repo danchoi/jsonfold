@@ -98,12 +98,12 @@ reduceValue rs ks (MergeLeaf vs) =
     let r = undefined -- TODO select ReductionStrategy
     in reduceLeafValues r ks vs 
 
-reduceLeafValues :: ReductionStrategy -> Path -> [Value] -> ReductionValue
-reduceLeafValues r ks vs 
-    -- TODO
+reduceLeafValues :: [ReductionStrategy] -> Path -> [Value] -> ReductionValue
+reduceLeafValues rs ks vs 
+    -- TODO NEXT try strategies from front until reduced to singleton [Value]
     | length (nub vs) == 1 = ReductionLeaf vs (head $ nub vs) AllSame
     | null vs              = ReductionLeaf vs Null Empty
-    | otherwise = ReductionLeaf vs v r
+    | otherwise = ReductionLeaf vs v Empty
         where v = Null -- CHANGEME
 
 -- apply strategies until [Value] is a singleton list
