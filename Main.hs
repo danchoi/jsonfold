@@ -45,8 +45,10 @@ data MergeValue = MergeObject (HashMap Text MergeValue)
                 | MergeLeaf [Value] 
                 deriving Show
 
+-- If all values are equal (incl. all null) or there is only one value, then no reduction strategy is used. 
+
 data ReductionStrategy = 
-          First | Last | Majority | Max | Min | Longest | Shortest | Union | Intersect
+          First | Last | Majority | Max | Min | MinNull | Longest | Shortest | Union | Intersect
     deriving Show
 
 type  ReductionStrategies = [(Path, ReductionStrategy)]
