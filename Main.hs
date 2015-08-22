@@ -120,7 +120,7 @@ applyStrategy Concat vs = [ Array . V.fromList . concat $ [ V.toList v  | Array 
 applyStrategy NubConcat vs = [ Array . V.fromList . nub . concat $ [ V.toList v  | Array v <- vs ] ]
 
 -- class  (Eq a) => Ord a  where
---  (<), (<=), (>=), (>)  :: a -> a -> Bool
+--    (<), (<=), (>=), (>)  :: a -> a -> Bool
 --    max, min              :: a -> a -> a
 
 instance Ord Value where
