@@ -51,6 +51,8 @@ data ReductionStrategy =
           First | Last | Majority | Max | Min | MinNull | Longest | Shortest | Union | Intersect
     deriving Show
 
+type Path = [Text]
+
 -- There should probably be a series of reduction strategies, one tried after another?
 type ReductionStrategies = [(Path, ReductionStrategy)]
 
@@ -88,8 +90,6 @@ mergeWithKey k o v  -- v is not an JSON object, could be null
       | otherwise                            = MergeLeaf [v]
 
 ------------------------------------------------------------------------
-
-type Path = [Text]
 
 reduceValue :: ReductionStrategies -> Path -> MergeValue -> ReductionValue
 reduceValue rs ks (MergeObject o) = ReductionObject $ HM.mapWithKey (\k v -> reduceValue rs (k:ks) v) o
