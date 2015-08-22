@@ -45,8 +45,9 @@ data MergeValue = MergeObject (HashMap Text MergeValue)
                 | MergeLeaf [Value] 
                 deriving Show
 
-data ReductionStrategy = Last 
-        deriving Show
+data ReductionStrategy = 
+    First | Last | Majority | FirstNotNull | LastNotNull | Max | Min | Longest | Shortest | Union | Intersect
+    deriving Show
 
 type  ReductionStrategies = [(Path, ReductionStrategy)]
 
