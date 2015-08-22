@@ -48,9 +48,9 @@ data MergeValue = MergeObject (HashMap Text MergeValue)
 data ReductionStrategy = Last 
         deriving Show
 
-data MergeReduction = 
-        MergeReductionObject (HashMap Text MergeReduction)
-      | MergeReductionLeaf [Value] Value ReductionStrategy
+data Reduction = 
+        ReductionObject (HashMap Text Reduction)
+      | ReductionLeaf [Value] Value ReductionStrategy
         deriving Show
 
 main = do
@@ -63,6 +63,7 @@ main = do
   -- print  x
   BL8.putStrLn . encode . debugReduce $ x
    
+------------------------------------------------------------------------
 
 mkMergeValue :: MergeValue -> Value -> MergeValue
 mkMergeValue (MergeObject m) (Object v) = 
@@ -80,6 +81,11 @@ mergeWithKey k o v  -- v is not an JSON object, could be null
       | Just (MergeLeaf vs) <- HM.lookup k o = MergeLeaf $ v:vs 
       | Just x <- HM.lookup k o = error $ "HM.lookup " ++ (T.unpack k) ++ " results in " ++ show x
       | otherwise                            = MergeLeaf [v]
+
+------------------------------------------------------------------------
+
+reduceValue :: ReductionStrategy -> MergeValue -> Reduction
+reduceValue s m = undefined
 
 
 -- | This just turns MergeLeaf into JSON arrays
