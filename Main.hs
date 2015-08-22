@@ -78,7 +78,6 @@ mergeWithKey :: Text -> HashMap Text MergeValue -> Value -> MergeValue
 mergeWithKey k parentObj childObj@(Object _) 
       | Just c@(MergeObject _) <- HM.lookup k parentObj = mkMergeValue c childObj
       | otherwise                                       = mkMergeValue (MergeObject HM.empty) childObj
-
 mergeWithKey k o v  -- v is not an JSON object, could be null
       | Just (MergeLeaf vs) <- HM.lookup k o = MergeLeaf $ v:vs 
       | Just x <- HM.lookup k o              = error $ "HM.lookup " ++ (T.unpack k) ++ " results in " ++ show x
@@ -107,31 +106,6 @@ debugReduce :: MergeValue -> Value
 debugReduce (MergeObject m) = Object . fmap debugReduce $ m
 debugReduce (MergeLeaf vs) = Array . V.fromList $ vs
 
-{-
-unionWithKey :: (Text -> Value -> Value -> Value) -> HashMap Text Value -> HashMap Text Value -> HashMap Text Value
-unionWithKey f o o' = 
-      let o'MergedMatchingKeys = HM.mapWithKey f' o' 
-          oUniqueKeys = HM.difference o o'
-      in o'MergedMatchingKeys `HM.union` oUniqueKeys
-    where f' :: Text -> Value -> Value
-          f' key v | HM.member key o = mergeValue key v ((HM.!) o key)
-                   | otherwise       = v
--}
-{-
--- The first parameter is the accumulator
-mergeValue :: Text -> Value -> Value -> Value
-mergeValue key (Object v) (Object v') = 
-    -- merge all the keys and recursively merged values
-    Object $ unionWithKey mergeValue v' v 
-
-mergeValue key (String v) (String v') = String (max v v')
-mergeValue key (Bool v) (Bool v') = Bool (max v v')
-mergeValue key (Number v) (Number v') = Number (max v v') -- ?
-mergeValue key x Null = x
-mergeValue key Null x = x
-mergeValue key (Array v) (Array v') = if V.length v > V.length v' then Array v else Array v'
--- TODO we can merge the arrays and nub ? Won't work on version
--}
 
 
 -- For reference: mapWithKey :: (k -> v1 -> v2) -> HashMap k v1 -> HashMap k v2
