@@ -27,8 +27,8 @@ import qualified Data.Text.Lazy.Builder as B
 import qualified Data.Text.Lazy.Builder.Int as B
 import qualified Data.Text.Lazy.Builder.RealFloat as B
 import qualified Options.Applicative as O
-import Data.List (foldl', foldl1', sort, nub, maximum, minimum)
-
+import Data.List (foldl', foldl1', sort, nub, maximum, minimum, sortBy, group)
+import Data.Function (on)
 data Options = Options deriving Show
 
 parseOpts :: O.Parser Options
@@ -112,7 +112,9 @@ applyStrategy Last    vs = take 1 $ reverse vs
 applyStrategy Max     vs = maxValue vs
 applyStrategy Min     vs = maxValue vs
 applyStrategy MinNotNull vs = minValue [v | v <- vs, v /= Null] 
-applyStrategy Majority vs = vs  -- TODO
+applyStrategy Majority vs = 
+      let vs' = reverse $ sortBy (compare `on` length) $ group $ sort vs 
+      in take 1 . concat $ vs'
 applyStrategy Longest  vs = vs 
 applyStrategy Shortest vs = vs 
 applyStrategy Union vs = vs 
