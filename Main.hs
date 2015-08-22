@@ -77,11 +77,11 @@ mkMergeValue _ _ = error "Top-level Value must be an Object"
 mergeWithKey :: Text -> HashMap Text MergeValue -> Value -> MergeValue
 mergeWithKey k parentObj childObj@(Object _) 
       | Just c@(MergeObject _) <- HM.lookup k parentObj = mkMergeValue c childObj
-      | otherwise = mkMergeValue (MergeObject HM.empty) childObj
+      | otherwise                                       = mkMergeValue (MergeObject HM.empty) childObj
 
 mergeWithKey k o v  -- v is not an JSON object, could be null
       | Just (MergeLeaf vs) <- HM.lookup k o = MergeLeaf $ v:vs 
-      | Just x <- HM.lookup k o = error $ "HM.lookup " ++ (T.unpack k) ++ " results in " ++ show x
+      | Just x <- HM.lookup k o              = error $ "HM.lookup " ++ (T.unpack k) ++ " results in " ++ show x
       | otherwise                            = MergeLeaf [v]
 
 ------------------------------------------------------------------------
@@ -97,6 +97,9 @@ reduceValue rs ks (MergeLeaf vs) =
 reduceLeafValues :: ReductionStrategy -> Path -> [Value] -> ReductionValue
 reduceLeafValues r ks vs = ReductionLeaf vs v r
     where v = Null -- CHANGEME
+
+
+------------------------------------------------------------------------
 
 
 -- | This just turns MergeLeaf into JSON arrays
