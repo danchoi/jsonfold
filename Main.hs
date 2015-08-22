@@ -46,6 +46,7 @@ data MergeValue = MergeObject (HashMap Text MergeValue)
                 deriving Show
 
 -- If all values are equal (incl. all null) or there is only one value, then no reduction strategy is used. 
+-- There should probably be a series of reduction straties, one tried after another?
 
 data ReductionStrategy = 
           First | Last | Majority | Max | Min | MinNull | Longest | Shortest | Union | Intersect
