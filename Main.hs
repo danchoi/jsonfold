@@ -51,7 +51,7 @@ data ReductionStrategy =
           First | Last | Majority | Max | Min | MinNull | Longest | Shortest | Union | Intersect
     deriving Show
 
--- There should probably be a series of reduction straties, one tried after another?
+-- There should probably be a series of reduction strategies, one tried after another?
 type ReductionStrategies = [(Path, ReductionStrategy)]
 
 data ReductionValue = 
