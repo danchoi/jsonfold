@@ -45,6 +45,14 @@ data MergeValue = MergeObject (HashMap Text MergeValue)
                 | MergeLeaf [Value] 
                 deriving Show
 
+data ReductionStrategy = Last 
+        deriving Show
+
+data MergeReduction = 
+        MergeReductionObject (HashMap Text MergeReduction)
+      | MergeReductionLeaf [Value] Value ReductionStrategy
+        deriving Show
+
 main = do
   Options{..} <- O.execParser opts
   s <- BL.getContents 
