@@ -100,14 +100,18 @@ reduceValue rs ks (MergeLeaf vs) =
 
 reduceLeafValues :: ReductionStrategy -> Path -> [Value] -> ReductionValue
 reduceLeafValues r ks vs 
+    -- TODO
     | length (nub vs) == 1 = ReductionLeaf vs (head $ nub vs) AllSame
     | null vs              = ReductionLeaf vs Null Empty
     | otherwise = ReductionLeaf vs v r
         where v = Null -- CHANGEME
 
+-- apply strategies until [Value] is a singleton list
+
 applyStrategy :: ReductionStrategy -> [Value] -> [Value]
 applyStrategy AllSame vs = nub vs 
 applyStrategy Empty   vs = if null vs then [Null] else vs
+-- may need to reverse these
 applyStrategy First   vs = take 1 vs 
 applyStrategy Last    vs = take 1 $ reverse vs
 applyStrategy Max     vs = maxValue vs
