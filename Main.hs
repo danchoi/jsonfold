@@ -52,8 +52,8 @@ main = do
       xs = decodeStream s
       x :: MergeValue
       x = foldl' (mkMergeValue ) (MergeObject HM.empty) xs 
-  -- BL8.putStrLn . encode $ x
-  print  x
+  -- print  x
+  BL8.putStrLn . encode . debugReduce $ x
    
 
 mkMergeValue :: MergeValue -> Value -> MergeValue
@@ -66,6 +66,13 @@ mkMergeValue (MergeLeaf ms) v = MergeLeaf (v:ms)
 mergeWithKey :: Text -> HashMap Text MergeValue -> Value -> MergeValue
 mergeWithKey k o v | Just (MergeLeaf vs) <- HM.lookup k o = MergeLeaf (v:vs)
                    | otherwise = MergeLeaf [v]
+
+
+-- | This just turns MergeLeaf into JSON arrays
+debugReduce :: MergeValue -> Value 
+debugReduce (MergeObject m) = Object . fmap debugReduce $ m
+debugReduce (MergeLeaf vs) = Array . V.fromList $ vs
+
 {-
 unionWithKey :: (Text -> Value -> Value -> Value) -> HashMap Text Value -> HashMap Text Value -> HashMap Text Value
 unionWithKey f o o' = 
