@@ -114,9 +114,9 @@ applyStrategy Empty   vs = if null vs then [Null] else vs
 -- may need to reverse these
 applyStrategy First   vs = take 1 vs 
 applyStrategy Last    vs = take 1 $ reverse vs
-applyStrategy Max     vs = maxValue vs
-applyStrategy Min     vs = maxValue vs
-applyStrategy MinNotNull vs = minValue [v | v <- vs, v /= Null] 
+applyStrategy Max     vs = [ maximum vs ]
+applyStrategy Min     vs = [ minimum vs ]
+applyStrategy MinNotNull vs = [ minimum [v | v <- vs, v /= Null] ]
 applyStrategy Majority vs = 
       let vs' = reverse $ sortBy (compare `on` length) $ group $ sort vs 
       in take 1 . concat $ vs'
@@ -138,12 +138,6 @@ instance Ord Value where
             y = length . HM.keys $ ys 
         in x <= y  -- just need something that doesn't blow up
     x <= y = error $ "Can't compare unlike Value types: " ++ show (x,y)
-
-maxValue :: [Value] -> [Value]
-maxValue vs = [ maximum vs ]
-
-minValue :: [Value] -> [Value]
-minValue vs = [ minimum vs ]
 
 ------------------------------------------------------------------------
 
