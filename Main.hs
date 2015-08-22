@@ -95,7 +95,8 @@ reduceValue rs ks (MergeLeaf vs) =
     in reduceLeafValues r ks vs 
 
 reduceLeafValues :: ReductionStrategy -> Path -> [Value] -> ReductionValue
-reduceLeafValues r ks vs = undefined
+reduceLeafValues r ks vs = ReductionLeaf vs v r
+    where v = Null -- CHANGEME
 
 
 -- | This just turns MergeLeaf into JSON arrays
