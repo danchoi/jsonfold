@@ -109,21 +109,31 @@ applyStrategy AllSame vs = nub vs
 applyStrategy Empty   vs = if null vs then [Null] else vs
 applyStrategy First   vs = take 1 vs 
 applyStrategy Last    vs = take 1 $ reverse vs
-applyStrategy Max     vs = maxValues vs
-applyStrategy Min     vs = maxValues vs
-applyStrategy MinNotNull vs = minValues [v | v <- vs, v /= Null] 
+applyStrategy Max     vs = maxValue vs
+applyStrategy Min     vs = maxValue vs
+applyStrategy MinNotNull vs = minValue [v | v <- vs, v /= Null] 
 applyStrategy Majority vs = vs  -- TODO
 applyStrategy Longest  vs = vs 
 applyStrategy Shortest vs = vs 
 applyStrategy Union vs = vs 
 applyStrategy Intersect vs = vs 
 
+-- class  (Eq a) => Ord a  where
+--  (<), (<=), (>=), (>)  :: a -> a -> Bool
+--    max, min              :: a -> a -> a
 
-maxValues :: [Value] -> [Value]
-maxValues vs = vs
+instance Ord Value where
+    String x <= String y = x <= y
+    Number x <= Number y = x <= y
+    Bool x   <= Bool y   = x <= y
+    Null     <= _        = True
+    x <= y  = error $ "Can't apply Ord to " ++ show (x, y)
 
-minValues :: [Value] -> [Value]
-minValues vs = vs
+maxValue :: [Value] -> [Value]
+maxValue vs = [ maximum vs ]
+
+minValue :: [Value] -> [Value]
+minValue vs = [ minimum vs ]
 
 ------------------------------------------------------------------------
 
