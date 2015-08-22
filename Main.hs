@@ -41,16 +41,42 @@ opts = O.info (O.helper <*> parseOpts)
             <> O.header "jsonmerge"
             <> O.footer "See https://github.com/danchoi/jsonfold for more information.")
 
+data MergeValue = MergeObject (HashMap Text MergeValue)
+                | MergeLeaf [Value] 
+                deriving Show
+
 main = do
   Options{..} <- O.execParser opts
   s <- BL.getContents 
   let xs :: [Value]
       xs = decodeStream s
-      x :: Value
-      x = foldl1' (mergeValue "") xs 
-  BL8.putStrLn . encode $ x
+      x :: MergeValue
+      x = foldl' (mkMergeValue ) (MergeObject HM.empty) xs 
+  -- BL8.putStrLn . encode $ x
+  print  x
    
 
+mkMergeValue :: MergeValue -> Value -> MergeValue
+mkMergeValue (MergeObject m) (Object v) = 
+      MergeObject $ HM.mapWithKey f v 
+    where f :: (Text -> Value -> MergeValue) 
+          f k v' = mergeWithKey k m v'
+mkMergeValue (MergeLeaf ms) v = MergeLeaf (v:ms)
+
+mergeWithKey :: Text -> HashMap Text MergeValue -> Value -> MergeValue
+mergeWithKey k o v | Just (MergeLeaf vs) <- HM.lookup k o = MergeLeaf (v:vs)
+                   | otherwise = MergeLeaf [v]
+{-
+unionWithKey :: (Text -> Value -> Value -> Value) -> HashMap Text Value -> HashMap Text Value -> HashMap Text Value
+unionWithKey f o o' = 
+      let o'MergedMatchingKeys = HM.mapWithKey f' o' 
+          oUniqueKeys = HM.difference o o'
+      in o'MergedMatchingKeys `HM.union` oUniqueKeys
+    where f' :: Text -> Value -> Value
+          f' key v | HM.member key o = mergeValue key v ((HM.!) o key)
+                   | otherwise       = v
+-}
+{-
 -- The first parameter is the accumulator
 mergeValue :: Text -> Value -> Value -> Value
 mergeValue key (Object v) (Object v') = 
@@ -64,15 +90,8 @@ mergeValue key x Null = x
 mergeValue key Null x = x
 mergeValue key (Array v) (Array v') = if V.length v > V.length v' then Array v else Array v'
 -- TODO we can merge the arrays and nub ? Won't work on version
+-}
 
-unionWithKey :: (Text -> Value -> Value -> Value) -> HashMap Text Value -> HashMap Text Value -> HashMap Text Value
-unionWithKey f o o' = 
-      let o'MergedMatchingKeys = HM.mapWithKey f' o' 
-          oUniqueKeys = HM.difference o o'
-      in o'MergedMatchingKeys `HM.union` oUniqueKeys
-    where f' :: Text -> Value -> Value
-          f' key v | HM.member key o = mergeValue key v ((HM.!) o key)
-                   | otherwise       = v
 
 -- For reference: mapWithKey :: (k -> v1 -> v2) -> HashMap k v1 -> HashMap k v2
 
