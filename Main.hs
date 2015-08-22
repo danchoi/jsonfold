@@ -48,8 +48,10 @@ data MergeValue = MergeObject (HashMap Text MergeValue)
 data ReductionStrategy = Last 
         deriving Show
 
-data Reduction = 
-        ReductionObject (HashMap Text Reduction)
+type  ReductionStrategies = [(Path, ReductionStrategy)]
+
+data ReductionValue = 
+        ReductionObject (HashMap Text ReductionValue)
       | ReductionLeaf [Value] Value ReductionStrategy
         deriving Show
 
@@ -84,8 +86,16 @@ mergeWithKey k o v  -- v is not an JSON object, could be null
 
 ------------------------------------------------------------------------
 
-reduceValue :: ReductionStrategy -> MergeValue -> Reduction
-reduceValue s m = undefined
+type Path = [Text]
+
+reduceValue :: ReductionStrategies -> Path -> MergeValue -> ReductionValue
+reduceValue rs ks (MergeObject o) = ReductionObject $ HM.mapWithKey (\k v -> reduceValue rs (k:ks) v) o
+reduceValue rs ks (MergeLeaf vs) = 
+    let r = undefined -- TODO select ReductionStrategy
+    in reduceLeafValues r ks vs 
+
+reduceLeafValues :: ReductionStrategy -> Path -> [Value] -> ReductionValue
+reduceLeafValues r ks vs = undefined
 
 
 -- | This just turns MergeLeaf into JSON arrays
