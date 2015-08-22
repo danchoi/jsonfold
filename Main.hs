@@ -61,12 +61,16 @@ mkMergeValue (MergeObject m) (Object v) =
       MergeObject $ HM.mapWithKey f v 
     where f :: (Text -> Value -> MergeValue) 
           f k v' = mergeWithKey k m v'
-mkMergeValue (MergeLeaf ms) v = MergeLeaf (v:ms)
+mkMergeValue _ _ = error "Top-level Value must be an Object"
 
 mergeWithKey :: Text -> HashMap Text MergeValue -> Value -> MergeValue
-mergeWithKey k o o'@(Object _)               = mkMergeValue (MergeObject o) o'
-mergeWithKey k o v          
-      | Just (MergeLeaf vs) <- HM.lookup k o = MergeLeaf (v:vs)
+mergeWithKey k parentObj childObj@(Object _) 
+      | Just c@(MergeObject _) <- HM.lookup k parentObj = mkMergeValue c childObj
+      | otherwise = mkMergeValue (MergeObject HM.empty) childObj
+
+mergeWithKey k o v  -- v is not an JSON object, could be null
+      | Just (MergeLeaf vs) <- HM.lookup k o = MergeLeaf $ v:vs 
+      | Just x <- HM.lookup k o = error $ "HM.lookup " ++ (T.unpack k) ++ " results in " ++ show x
       | otherwise                            = MergeLeaf [v]
 
 
