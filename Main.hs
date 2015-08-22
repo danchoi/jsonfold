@@ -64,8 +64,10 @@ mkMergeValue (MergeObject m) (Object v) =
 mkMergeValue (MergeLeaf ms) v = MergeLeaf (v:ms)
 
 mergeWithKey :: Text -> HashMap Text MergeValue -> Value -> MergeValue
-mergeWithKey k o v | Just (MergeLeaf vs) <- HM.lookup k o = MergeLeaf (v:vs)
-                   | otherwise = MergeLeaf [v]
+mergeWithKey k o o'@(Object _)               = mkMergeValue (MergeObject o) o'
+mergeWithKey k o v          
+      | Just (MergeLeaf vs) <- HM.lookup k o = MergeLeaf (v:vs)
+      | otherwise                            = MergeLeaf [v]
 
 
 -- | This just turns MergeLeaf into JSON arrays
