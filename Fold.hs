@@ -29,7 +29,11 @@ import qualified Data.Text.Lazy.Builder.RealFloat as B
 import qualified Options.Applicative as O
 import Data.List (foldl', foldl1', sort, nub, maximum, minimum, sortBy, group)
 import Data.Function (on)
-data Options = Options deriving Show
+
+data Options = Options { 
+    keyPathToFold :: String
+  } deriving Show
+
 
 parseOpts :: O.Parser Options
 parseOpts = pure Options 
@@ -80,6 +84,9 @@ reduceArray rs ks vs =
     in head vs'
 
 -- apply strategies until [Value] is a singleton list
+-- TODO: NotNull should be a filter
+-- Concat should take option delimiter;
+-- ArrayConcat vs LeafConcat; LeafConcat can take a delimiter
 
 applyStrategy :: ReductionStrategy -> [Value] -> [Value]
 applyStrategy AllSame vs = nub vs 
@@ -114,10 +121,46 @@ instance Ord Value where
     x <= y = error $ "Can't compare unlike Value types: " ++ show (x,y)
 
 ------------------------------------------------------------------------
+-- | KeyPath 
+
+-- actors[concat]
+-- actors[concat|intersperse','].name 
+        lifts name from objects first into an Array, then intersperses "," strings, then concats
+-- TODO rename ReductionStrategy to a generic operation
+
+data Key = Key Text | ArrayOp [ReductionStrategy] deriving (Eq, Show)
+
+parseKeyPath :: Text -> [KeyPath]
+parseKeyPath s = case AT.parseOnly pKeyPaths s of
+    Left err -> error $ "Parse error " ++ err 
+    Right res -> res
+
+spaces = many1 AT.space
+
+pKeyPaths :: AT.Parser [KeyPath]
+pKeyPaths = pKeyPath `AT.sepBy` spaces
+
+pKeyPath :: AT.Parser KeyPath
+pKeyPath = KeyPath 
+    <$> (AT.sepBy1 pKeyOrIndex (AT.takeWhile1 $ AT.inClass ".["))
+    <*> (pAlias <|> pure Nothing)
+
+-- | A column header alias is designated by : followed by alphanum string after keypath
+pAlias :: AT.Parser (Maybe Text)
+pAlias = do
+    AT.char ':'
+    Just <$> AT.takeWhile1 (AT.inClass "a-zA-Z0-9_-")
+
+pKeyOrIndex :: AT.Parser Key
+pKeyOrIndex = pIndex <|> pKey
+
+pKey = Key <$> AT.takeWhile1 (AT.notInClass " .[:")
+
+pIndex = Index <$> AT.decimal <* AT.char ']'
 
 
 
-
+------------------------------------------------------------------------
 
 -- For reference: mapWithKey :: (k -> v1 -> v2) -> HashMap k v1 -> HashMap k v2
 
