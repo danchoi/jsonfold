@@ -93,6 +93,7 @@ applyStrategy MinNotNull vs = [ minimum [v | v <- vs, v /= Null] ]
 applyStrategy Majority vs = 
       let vs' = reverse $ sortBy (compare `on` length) $ group $ sort vs 
       in take 1 . concat $ vs'
+-- These only work on Array of Array:
 applyStrategy Concat vs = [ Array . V.fromList . concat $ [ V.toList v  | Array v <- vs ] ]
 applyStrategy NubConcat vs = [ Array . V.fromList . nub . concat $ [ V.toList v  | Array v <- vs ] ]
 
