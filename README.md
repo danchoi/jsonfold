@@ -29,7 +29,7 @@ Available options:
 ### Examples
 
 
-```json
+```
 # fruit.json
 {"fruit":["apple","banana","apple","pear"]}
 
@@ -44,7 +44,7 @@ $ jsonfold 'fruit( concatsep " + " ) '  < fruit.json
 
 
 # numbers.json
-# {numbers":[1,2,3,4]}
+# {"numbers":[1,2,3,4]}
 
 $ jsonfold 'numbers(concat|compact|sort.asc|nub)' < numbers.json 
 {"numbers":[1,2,3,4]}
