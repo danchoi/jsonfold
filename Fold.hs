@@ -165,7 +165,7 @@ orderOp Desc = reverse
 --    max, min              :: a -> a -> a
 
 instance Ord Value where
-    String x <= String y = T.length x <= T.length y
+    String x <= String y = T.length x <= T.length y || x <= y
     Number x <= Number y = x <= y
     Bool x   <= Bool y   = x <= y
     Null     <= _        = True
@@ -181,9 +181,8 @@ instance Ord Value where
 
 -- cast.actors( concat | head )
 -- title( sortfreq.desc | head )
--- *( compact | sort.desc | head )
+-- *( compact | sort.desc | head )  -- fallback
 -- genres( sort.asc | compact | concatsep"," )
-
 
 
 
