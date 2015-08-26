@@ -31,19 +31,21 @@ import Data.List (foldl', foldl1', sort, nub, maximum, minimum, sortBy, group)
 import Data.Function (on)
 
 data Options = Options { 
-    keyPathToFold :: String
+    directives :: [PathDirective]
+  , debug :: Bool
   } deriving Show
 
 
 parseOpts :: O.Parser Options
-parseOpts = pure $ Options ""
+parseOpts = Options 
+    <$> (parse . T.pack <$> O.argument O.str (O.metavar "DSL" <> O.help "Path directives DSL"))
+    <*> O.flag False True (O.short 'd' <> O.long "debug" <> O.help "Debug directive parser. Does not parse STDIN")
 
 opts = O.info (O.helper <*> parseOpts)
           (O.fullDesc 
             <> O.progDesc "Fold merge JSON leaves with arrays"
             <> O.header "jsonfold"
             <> O.footer "See https://github.com/danchoi/jsonfold for more information.")
-
 
 data Directive = 
         Sort Order -- Asc orders by lowest value first, meant for numbers and bool
@@ -80,12 +82,14 @@ type ReductionStrategies = [(PathSpec, Directive)]
 
 main = do
   Options{..} <- O.execParser opts
-  s <- BL.getContents 
-  let xs :: [Value]
-      xs = decodeStream s
-      rs = [ (FullPathMatch ["ASIN"], [Head]) ] 
-  forM_ xs $ \x -> 
-      BL8.putStrLn . encode . reduceValue rs [] $ x
+  case debug of
+    True -> print directives 
+    False -> do
+      s <- BL.getContents 
+      let xs :: [Value]
+          xs = decodeStream s
+      forM_ xs $ \x -> 
+          BL8.putStrLn . encode . reduceValue directives [] $ x
    
 ------------------------------------------------------------------------
 
