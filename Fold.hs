@@ -47,7 +47,7 @@ opts = O.info (O.helper <*> parseOpts)
 
 data Directive = 
         Sort Order -- Asc orders by lowest value first, meant for numbers and bool
-                      -- For String, Array, Object, orders by shortest length (number of keys for obj)
+                   -- For String, Array, Object, orders by shortest length (number of keys for obj)
       | SortFreq Order -- Desc orders by highest frequency first
       | Nub -- eliminate dupes, works like Haskell `nub`
       | Concat  -- concats array to arrays into one array
@@ -192,6 +192,7 @@ parse s = case AT.parseOnly pPathDirectives s of
     Right res -> res
 
 spaces = AT.many1 AT.space
+spaces' = AT.many' AT.space
 
 pPathDirectives :: AT.Parser [PathDirective]
 pPathDirectives = pPathDirective `AT.sepBy` spaces
@@ -199,9 +200,13 @@ pPathDirectives = pPathDirective `AT.sepBy` spaces
 pPathDirective :: AT.Parser PathDirective
 pPathDirective = do
     path <- pAnyPath <|> pFullPath
-    ds <- pDirectives
+    spaces' >> AT.char '(' >> spaces'
+    ds <- pDirective `AT.sepBy1` pipe
+    spaces' >> AT.char ')' 
     return (path, ds)
     
+pipe = spaces' >> AT.char '|' >> spaces' 
+
 pAnyPath :: AT.Parser PathSpec
 pAnyPath = AT.char '*' >> pure AnyPathFallBack
 
@@ -209,10 +214,30 @@ pFullPath = FullPathMatch <$> AT.sepBy1 pPathSeg (AT.takeWhile1 $ AT.inClass "."
 
 pPathSeg = AT.takeWhile1 (AT.notInClass " .[:")
 
-pDirectives :: AT.Parser [Directive]
--- CHANGEME
-pDirectives = pure [Sort Asc]
+pDirective :: AT.Parser Directive
+pDirective = 
+    AT.choice [
+      AT.string "concat" >> pure Concat 
+    , AT.string "nub" >> pure Nub 
+    , AT.string "compcat" >> pure Compact
+    , AT.string "head" >> pure Head
+    , AT.string "concatsep" >> (ConcatSep <$> pSep)
+    , AT.string "sort" >> (Sort <$> pOrder)
+    , AT.string "sortfreq" >> (SortFreq <$> pOrder)
+    -- sort, sortfreq
+    ]
 
+pSep = do
+    spaces'
+    openQuote <- AT.satisfy $ AT.inClass "\"'"
+    sepString <- AT.takeTill (==openQuote) 
+    -- close quote
+    AT.char openQuote
+    return sepString
+
+pOrder = do
+    AT.char '.' 
+    (AT.string "asc" >> return Asc) <|> (AT.string "desc" >> return Desc) 
 
 
 
