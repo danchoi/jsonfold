@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, QuasiQuotes, RecordWildCards #-}
 module Main where
 import Data.Aeson
-import Data.Monoid (mempty, (<>))
+import Data.Monoid (mempty, mconcat, (<>))
 import qualified Data.Map.Strict as M
 import Data.Text (Text)
 import qualified Data.Text.Encoding as T (decodeUtf8)
@@ -36,7 +36,7 @@ data Options = Options {
 
 
 parseOpts :: O.Parser Options
-parseOpts = pure Options 
+parseOpts = pure $ Options ""
 
 opts = O.info (O.helper <*> parseOpts)
           (O.fullDesc 
@@ -45,18 +45,37 @@ opts = O.info (O.helper <*> parseOpts)
             <> O.footer "See https://github.com/danchoi/jsonfold for more information.")
 
 
--- If all values are equal (incl. all null) or there is only one value, then no reduction strategy is used. 
+data Directive = 
+        Sort Order -- Asc orders by lowest value first, meant for numbers and bool
+                      -- For String, Array, Object, orders by shortest length (number of keys for obj)
+      | SortFreq Order -- Desc orders by highest frequency first
+      | Nub -- eliminate dupes, works like Haskell `nub`
+      | Concat  -- concats array to arrays into one array
+      | ConcatSep Text -- converts string, number, bool, null array elem to string and concats them with the delim value
+      | Compact -- eliminate Nulls
+      | Head -- takes 1st element of array or Null if empty
+             -- Use this to de-dupe a list into one element, after sorting
+             -- with the other directives above
+    deriving (Eq, Show)
 
--- Max and Min compare length when applied to String, Array, or Object (number of keys)
+data Order = Asc | Desc deriving (Eq, Show)
 
-data ReductionStrategy = 
-       AllSame | Empty | First | Last | Max | Min | MinNotNull | Majority | Concat | NubConcat
-    deriving Show
+data PathSpec = FullPathMatch [Text] | AnyPathFallBack  -- default
+          deriving Show
 
 type Path = [Text]
 
+-- a path is like "versions.rental.price"
+-- A key can be like "versions.rental.price"
+-- default catchall path can be specified with "*" wildcard
+
+
+-- Directives in order of application, left to right, like a unix pipeline
+
+type PathDirective = (PathSpec, [Directive])
+
 -- There should probably be a series of reduction strategies, one tried after another?
-type ReductionStrategies = [(Path, ReductionStrategy)]
+type ReductionStrategies = [(PathSpec, Directive)]
 
 
 main = do
@@ -64,45 +83,71 @@ main = do
   s <- BL.getContents 
   let xs :: [Value]
       xs = decodeStream s
-      rs = [ Majority, First ]
+      rs = [ (FullPathMatch ["ASIN"], [Head]) ] 
   forM_ xs $ \x -> 
       BL8.putStrLn . encode . reduceValue rs [] $ x
    
 ------------------------------------------------------------------------
 
 
-reduceValue :: [ReductionStrategy] -> Path -> Value -> Value
+reduceValue :: [PathDirective] -> Path -> Value -> Value
 reduceValue rs ks (Object o) = Object $ HM.mapWithKey (\k v -> reduceValue rs (k:ks) v) o
--- Top level arrays should be reduced once. 
+-- CHANGEME Top level arrays should be reduced once. 
 reduceValue rs ks (Array vs) = reduceArray rs ks (V.toList vs)
 -- all other values are scale, and should be copied directly
 reduceValue _ _ v = v 
 
-reduceArray :: [ReductionStrategy] -> Path -> [Value] -> Value
-reduceArray rs ks vs =
-    let vs' = foldr applyStrategy vs (reverse rs)
-    in head vs'
+reduceArray :: [PathDirective] -> Path -> [Value] -> Value
+reduceArray ds ks vs = foldr applyStrategy vs ds'
+    where ds' :: [Directive]
+          ds' = map snd $ filter (\d -> d `matchesPath` ks) ds
+          matchesPath :: PathDirective -> Path -> Bool
+          matchesPath (FullPathMatch path', _) path = path'== path
+          matchesPath (AnyPathFallBack, _) _ = True
 
 -- apply strategies until [Value] is a singleton list
 -- TODO: NotNull should be a filter
 -- Concat should take option delimiter;
 -- ArrayConcat vs LeafConcat; LeafConcat can take a delimiter
 
-applyStrategy :: ReductionStrategy -> [Value] -> [Value]
-applyStrategy AllSame vs = nub vs 
-applyStrategy Empty   vs = if null vs then [Null] else vs
+applyStrategy :: Directive -> [Value] -> Value
 -- may need to reverse these
-applyStrategy First   vs = take 1 vs 
-applyStrategy Last    vs = take 1 $ reverse vs
-applyStrategy Max     vs = [ maximum vs ]
-applyStrategy Min     vs = [ minimum vs ]
-applyStrategy MinNotNull vs = [ minimum [v | v <- vs, v /= Null] ]
-applyStrategy Majority vs = 
-      let vs' = reverse $ sortBy (compare `on` length) $ group $ sort vs 
-      in take 1 . concat $ vs'
--- These only work on Array of Array:
-applyStrategy Concat vs = [ Array . V.fromList . concat $ [ V.toList v  | Array v <- vs ] ]
-applyStrategy NubConcat vs = [ Array . V.fromList . nub . concat $ [ V.toList v  | Array v <- vs ] ]
+applyStrategy (Sort ord) vs = toArray $ orderOp ord $ sort vs 
+applyStrategy (SortFreq ord) vs = toArray $ orderOp ord $ sortBy (compare `on` length) $ group $ sort vs 
+applyStrategy Nub vs = toArray [v | v <- vs, v /= Null] 
+
+-- collapses Array of Arrays into one level of Array
+applyStrategy Concat vs = Array . V.fromList . concat $ [ v  | Array v <- vs ] 
+
+-- collapses Array of String, Bool, Number, or Null into a scalar string representation
+applyStrategy (ConcatSep delim) vs = 
+      let xs = intersperse delim $ map valToText $ applyStrategy Concat vs
+      in String . mconcat $ xs
+
+applyStrategy Compact vs = toArray [ v | v <- vs, v /= Null ] 
+applyStrategy Head vs = case take 1 vs of
+                          [] -> Null
+                          [v] -> v
+
+valToText :: Value -> Text
+valToText (String x) = x
+valToText Null = "NULL"
+valToText (Bool True) = "TRUE"
+valToText (Bool False) = "FALSE"
+valToText (Number x) = 
+    case floatingOrInteger x of
+        Left float -> T.pack . show $ float
+        Right int -> T.pack . show $ int
+valToText (Array _) = "[Array]"
+valToText (Object _) = "[Object]"
+
+
+toArray :: [Value] -> Value
+toArray = Array . V.fromList 
+
+orderOp :: Order -> ([a] -> [a])
+orderOp Asc = id
+orderOp Desc = reverse
 
 -- class  (Eq a) => Ord a  where
 --    (<), (<=), (>=), (>)  :: a -> a -> Bool
@@ -124,39 +169,34 @@ instance Ord Value where
 -- | KeyPath 
 
 -- actors[concat]
--- actors[concat|intersperse','].name 
-        lifts name from objects first into an Array, then intersperses "," strings, then concats
--- TODO rename ReductionStrategy to a generic operation
+-- actors[intersperse','|concat].name 
+--         lifts name from objects first into an Array, then intersperses "," strings, then concats
 
-data Key = Key Text | ArrayOp [ReductionStrategy] deriving (Eq, Show)
+data Key = Key Text | ArrayOp [Directive] deriving (Eq, Show)
 
-parseKeyPath :: Text -> [KeyPath]
-parseKeyPath s = case AT.parseOnly pKeyPaths s of
+parseKeyPath :: Text -> [PathDirective]
+parseKeyPath s = case AT.parseOnly pPathDirectives s of
     Left err -> error $ "Parse error " ++ err 
     Right res -> res
 
-spaces = many1 AT.space
+spaces = AT.many1 AT.space
 
-pKeyPaths :: AT.Parser [KeyPath]
-pKeyPaths = pKeyPath `AT.sepBy` spaces
+pPathDirectives :: AT.Parser [PathDirective]
+-- pPathDirectives = pPathDirective `AT.sepBy` spaces
+pPathDirectives = pure [Sort Asc]
 
-pKeyPath :: AT.Parser KeyPath
-pKeyPath = KeyPath 
-    <$> (AT.sepBy1 pKeyOrIndex (AT.takeWhile1 $ AT.inClass ".["))
-    <*> (pAlias <|> pure Nothing)
+pPathDirective :: AT.Parser PathDirective
+pPathDirective = do
+    path <- anyPath <|> (FullPathMatch <$> AT.sepBy1 pPathSeg (AT.takeWhile1 $ AT.inClass "."))
+    ds <- pPathDirectives
+    return (path, ds)
+    
+anyPath :: AT.Parser PathSpec
+anyPath = AT.char '*' *> AnyPathFallBack
 
--- | A column header alias is designated by : followed by alphanum string after keypath
-pAlias :: AT.Parser (Maybe Text)
-pAlias = do
-    AT.char ':'
-    Just <$> AT.takeWhile1 (AT.inClass "a-zA-Z0-9_-")
+pPathSeg = Key <$> AT.takeWhile1 (AT.notInClass " .[:")
 
-pKeyOrIndex :: AT.Parser Key
-pKeyOrIndex = pIndex <|> pKey
-
-pKey = Key <$> AT.takeWhile1 (AT.notInClass " .[:")
-
-pIndex = Index <$> AT.decimal <* AT.char ']'
+-- pDirective = pure (Sort Asc) 
 
 
 
