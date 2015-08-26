@@ -46,7 +46,8 @@ $ jsonfold 'fruit( concatsep " + " ) '  < fruit.json
 # fruit-and-numbers.json
 # {"fruits":["apple","banana","apple","pear"], "numbers":[[8,2,3],[1,2,3,4],[null]]}
 
-$ jsonfold 'fruit(reverse|head) numbers(concat|compact|sort.asc|nub|reverse)' < fruit-and-numbers.json 
+$ jsonfold 'fruit(reverse|head) numbers(concat|compact|sort.asc|nub|reverse)' \
+    < fruit-and-numbers.json 
 {"fruit":"pear","numbers":[8,4,3,2,1]}
 
 ```
