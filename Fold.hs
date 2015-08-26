@@ -177,16 +177,18 @@ instance Ord Value where
     x <= y = error $ "Can't compare unlike Value types: " ++ show (x,y)
 
 ------------------------------------------------------------------------
--- | KeyPath 
+-- | transform DSL
 
--- actors[concat]
--- actors[intersperse','|concat].name 
---         lifts name from objects first into an Array, then intersperses "," strings, then concats
+-- cast.actors( concat | head )
+-- title( sortfreq.desc | head )
+-- *( compact | sort.desc | head )
+-- genres( sort.asc | compact | concatsep"," )
 
-data Key = Key Text | ArrayOp [Directive] deriving (Eq, Show)
 
-parseKeyPath :: Text -> [PathDirective]
-parseKeyPath s = case AT.parseOnly pPathDirectives s of
+
+
+parse :: Text -> [PathDirective]
+parse s = case AT.parseOnly pPathDirectives s of
     Left err -> error $ "Parse error " ++ err 
     Right res -> res
 
