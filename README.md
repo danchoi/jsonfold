@@ -44,7 +44,7 @@ $ jsonfold 'fruit( concatsep " + " ) '  < fruit.json
 
 
 # numbers.json
-# {"numbers":[1,2,3,4]}
+# {"numbers":[[1,2,3],[1,2,3,4],[null]]}
 
 $ jsonfold 'numbers(concat|compact|sort.asc|nub)' < numbers.json 
 {"numbers":[1,2,3,4]}
