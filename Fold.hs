@@ -103,7 +103,8 @@ reduceValue _ _ v = v
 
 reduceArray :: [PathDirective] -> Path -> Value -> Value
 reduceArray ds ks v@(Array _) = 
-      foldr applyStrategy v ds'
+      -- we reverse the pipeline of ds' from unix pipeline order to foldr order
+      foldr applyStrategy v (reverse ds')
     where ds' :: [Directive]
           ds' = let ws = concat [ys | (FullPathMatch ks', ys) <- ds, ks' == ks]
                 in case ws of
