@@ -28,21 +28,27 @@ Available options:
 
 ### Examples
 
-test.json
 
 ```json
-{"test":["apple","banana","apple","pear"]}
+# fruit.json
+{"fruit":["apple","banana","apple","pear"]}
+
+$ jsonfold 'fruit( sortfreq.desc | head ) '  < fruit.json 
+{"fruit":"apple"}
+
+$ jsonfold 'fruit( sort.desc | head ) '  < fruit.json 
+{"fruit":"pear"}
+
+$ jsonfold 'fruit( concatsep " + " ) '  < fruit.json 
+{"fruit":"apple + banana + apple + pear"}
+
+
+# numbers.json
+# {numbers":[1,2,3,4]}
+
+$ jsonfold 'numbers(concat|compact|sort.asc|nub)' < numbers.json 
+{"numbers":[1,2,3,4]}
+
 ```
 
 
-```
-$ jsonfold 'test( sortfreq.desc | head ) '  < test.json 
-{"test":"apple"}
-
-$ jsonfold 'test( sort.desc | head ) '  < test.json 
-{"test":"pear"}
-
-$ jsonfold 'test(  concatsep " + " ) '  < test.json 
-{"test":"apple + banana + apple + pear"}
-
-```
