@@ -52,6 +52,7 @@ data Directive =
                    -- For String, Array, Object, orders by shortest length (number of keys for obj)
       | SortFreq Order -- Desc orders by highest frequency first
       | Nub -- eliminate dupes, works like Haskell `nub`
+      | Reverse 
       | Concat  -- concats array to arrays into one array
       | ConcatSep Text -- converts string, number, bool, null array elem to string and concats them with the delim value
       | Compact -- eliminate Nulls
@@ -106,7 +107,8 @@ reduceArray ds ks v@(Array _) =
       -- we reverse the pipeline of ds' from unix pipeline order to foldr order
       foldr applyStrategy v (reverse ds')
     where ds' :: [Directive]
-          ds' = let ws = concat [ys | (FullPathMatch ks', ys) <- ds, ks' == ks]
+          -- to compare paths, we need to reverse the current path to match the path spec
+          ds' = let ws = concat [ys | (FullPathMatch ks', ys) <- ds, ks' == reverse ks]
                 in case ws of
                       [] -> concat [zs | (AnyPathFallBack, zs) <- ds]
                       _ -> ws
@@ -129,10 +131,11 @@ applyStrategy Concat (Array vs) =
     let vs' = V.toList vs
     in Array . V.fromList . concat $ [ V.toList v  | Array v <- vs' ] 
 
+applyStrategy Reverse (Array v) = Array $ withVector v reverse
+
 applyStrategy (ConcatSep delim) (Array vs) = 
     let vs' = V.toList vs
-        vs'' = concat $ [ V.toList v  | Array v <- vs' ]  
-        xs = intersperse delim $ map valToText vs''
+        xs = intersperse delim $ map valToText vs'
     in String . mconcat $ xs
 
 applyStrategy Compact (Array vs) = 
@@ -144,6 +147,9 @@ applyStrategy Head (Array vs) =
     in case take 1 vs' of
          [] -> Null
          [v] -> v
+
+withVector :: V.Vector a -> ([a] -> [a]) -> V.Vector a
+withVector v f = V.fromList . f . V.toList $ v
 
 valToText :: Value -> Text
 valToText (String x) = x
@@ -187,7 +193,7 @@ instance Ord Value where
 -- cast.actors( concat | head )
 -- title( sortfreq.desc | head )
 -- *( compact | sort.desc | head )  -- fallback
--- genres( sort.asc | compact | concatsep"," )
+-- genres( sort.asc | compact | concatsep "," )
 
 
 
@@ -204,39 +210,44 @@ pPathDirectives = pPathDirective `AT.sepBy` spaces
 
 pPathDirective :: AT.Parser PathDirective
 pPathDirective = do
-    path <- pAnyPath <|> pFullPath
+    path <- pFullPath <|> pAnyPath 
     spaces' >> AT.char '(' >> spaces'
-    ds <- pDirective `AT.sepBy1` pipe
+    ds <- pDirective `AT.sepBy` pipe
     spaces' >> AT.char ')' 
     return (path, ds)
     
 pipe = spaces' >> AT.char '|' >> spaces' 
 
 pAnyPath :: AT.Parser PathSpec
-pAnyPath = AT.char '*' >> pure AnyPathFallBack
+pAnyPath = pure AnyPathFallBack <* (AT.char '*')
 
-pFullPath = FullPathMatch <$> AT.sepBy1 pPathSeg (AT.takeWhile1 $ AT.inClass ".")
+pFullPath :: AT.Parser PathSpec
+pFullPath = do
+    xs <- AT.sepBy1 pPathSeg  (AT.takeWhile1 $ AT.inClass ".")
+    return $ FullPathMatch xs
 
-pPathSeg = AT.takeWhile1 (AT.notInClass " .[:")
+pPathSeg = AT.takeWhile1 (AT.notInClass "*.( ")
 
 pDirective :: AT.Parser Directive
 pDirective = 
     AT.choice [
-      AT.string "concat" >> pure Concat 
+      -- concatsep must come first because concat will be consumed and returned otherwise
+      AT.string "concatsep" >> (ConcatSep <$> pSep)
+    , AT.string "concat" >> pure Concat 
     , AT.string "nub" >> pure Nub 
+    , AT.string "reverse" >> pure Reverse
     , AT.string "compcat" >> pure Compact
     , AT.string "head" >> pure Head
-    , AT.string "concatsep" >> (ConcatSep <$> pSep)
     , AT.string "sort" >> (Sort <$> pOrder)
     , AT.string "sortfreq" >> (SortFreq <$> pOrder)
     -- sort, sortfreq
     ]
 
+pSep :: AT.Parser Text
 pSep = do
     spaces'
-    openQuote <- AT.satisfy $ AT.inClass "\"'"
-    sepString <- AT.takeTill (==openQuote) 
-    -- close quote
+    openQuote <- (AT.char '"' <|> AT.char '\'')
+    sepString <- AT.takeWhile1 (/= openQuote) 
     AT.char openQuote
     return sepString
 
