@@ -91,43 +91,54 @@ main = do
 
 
 reduceValue :: [PathDirective] -> Path -> Value -> Value
-reduceValue rs ks (Object o) = Object $ HM.mapWithKey (\k v -> reduceValue rs (k:ks) v) o
--- CHANGEME Top level arrays should be reduced once. 
-reduceValue rs ks (Array vs) = reduceArray rs ks (V.toList vs)
--- all other values are scale, and should be copied directly
+reduceValue ds ks (Object o) = Object $ HM.mapWithKey (\k v -> reduceValue ds (k:ks) v) o
+-- CHANGEME Maybe not: --  Top level arrays should be reduced once. 
+reduceValue ds ks v@(Array vs) = reduceArray ds ks v
+-- all other values are scalar, should be copied directly
 reduceValue _ _ v = v 
 
-reduceArray :: [PathDirective] -> Path -> [Value] -> Value
-reduceArray ds ks vs = foldr applyStrategy vs ds'
+reduceArray :: [PathDirective] -> Path -> Value -> Value
+reduceArray ds ks v@(Array _) = 
+      foldr applyStrategy v ds'
     where ds' :: [Directive]
-          ds' = map snd $ filter (\d -> d `matchesPath` ks) ds
-          matchesPath :: PathDirective -> Path -> Bool
-          matchesPath (FullPathMatch path', _) path = path'== path
-          matchesPath (AnyPathFallBack, _) _ = True
+          ds' = let ws = concat [ys | (FullPathMatch ks', ys) <- ds, ks' == ks]
+                in case ws of
+                      [] -> concat [zs | (AnyPathFallBack, zs) <- ds]
+                      _ -> ws
 
--- apply strategies until [Value] is a singleton list
--- TODO: NotNull should be a filter
--- Concat should take option delimiter;
--- ArrayConcat vs LeafConcat; LeafConcat can take a delimiter
 
-applyStrategy :: Directive -> [Value] -> Value
--- may need to reverse these
-applyStrategy (Sort ord) vs = toArray $ orderOp ord $ sort vs 
-applyStrategy (SortFreq ord) vs = toArray $ orderOp ord $ sortBy (compare `on` length) $ group $ sort vs 
-applyStrategy Nub vs = toArray [v | v <- vs, v /= Null] 
+applyStrategy :: Directive -> Value -> Value
 
--- collapses Array of Arrays into one level of Array
-applyStrategy Concat vs = Array . V.fromList . concat $ [ v  | Array v <- vs ] 
+applyStrategy (Sort ord) (Array vs) = toArray $ orderOp ord $ sort $ V.toList vs 
 
--- collapses Array of String, Bool, Number, or Null into a scalar string representation
-applyStrategy (ConcatSep delim) vs = 
-      let xs = intersperse delim $ map valToText $ applyStrategy Concat vs
-      in String . mconcat $ xs
+applyStrategy (SortFreq ord) (Array vs) = 
+    let xs :: [Value]
+        xs = orderOp ord $ map head $ sortBy (compare `on` length) $ group $ sort $ V.toList vs
+    in toArray xs
 
-applyStrategy Compact vs = toArray [ v | v <- vs, v /= Null ] 
-applyStrategy Head vs = case take 1 vs of
-                          [] -> Null
-                          [v] -> v
+applyStrategy Nub (Array vs) = 
+    let vs' = V.toList vs
+    in toArray [v | v <- vs', v /= Null] 
+
+applyStrategy Concat (Array vs) = 
+    let vs' = V.toList vs
+    in Array . V.fromList . concat $ [ V.toList v  | Array v <- vs' ] 
+
+applyStrategy (ConcatSep delim) (Array vs) = 
+    let vs' = V.toList vs
+        vs'' = concat $ [ V.toList v  | Array v <- vs' ]  
+        xs = intersperse delim $ map valToText vs''
+    in String . mconcat $ xs
+
+applyStrategy Compact (Array vs) = 
+    let vs' = V.toList vs
+    in toArray [ v | v <- vs', v /= Null ] 
+
+applyStrategy Head (Array vs) =   
+    let vs' = V.toList vs
+    in case take 1 vs' of
+         [] -> Null
+         [v] -> v
 
 valToText :: Value -> Text
 valToText (String x) = x
@@ -182,21 +193,25 @@ parseKeyPath s = case AT.parseOnly pPathDirectives s of
 spaces = AT.many1 AT.space
 
 pPathDirectives :: AT.Parser [PathDirective]
--- pPathDirectives = pPathDirective `AT.sepBy` spaces
-pPathDirectives = pure [Sort Asc]
+pPathDirectives = pPathDirective `AT.sepBy` spaces
 
 pPathDirective :: AT.Parser PathDirective
 pPathDirective = do
-    path <- anyPath <|> (FullPathMatch <$> AT.sepBy1 pPathSeg (AT.takeWhile1 $ AT.inClass "."))
-    ds <- pPathDirectives
+    path <- pAnyPath <|> pFullPath
+    ds <- pDirectives
     return (path, ds)
     
-anyPath :: AT.Parser PathSpec
-anyPath = AT.char '*' *> AnyPathFallBack
+pAnyPath :: AT.Parser PathSpec
+pAnyPath = AT.char '*' >> pure AnyPathFallBack
 
-pPathSeg = Key <$> AT.takeWhile1 (AT.notInClass " .[:")
+pFullPath = FullPathMatch <$> AT.sepBy1 pPathSeg (AT.takeWhile1 $ AT.inClass ".")
 
--- pDirective = pure (Sort Asc) 
+pPathSeg = AT.takeWhile1 (AT.notInClass " .[:")
+
+pDirectives :: AT.Parser [Directive]
+-- CHANGEME
+pDirectives = pure [Sort Asc]
+
 
 
 
