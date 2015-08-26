@@ -125,7 +125,7 @@ applyStrategy (SortFreq ord) (Array vs) =
 
 applyStrategy Nub (Array vs) = 
     let vs' = V.toList vs
-    in toArray [v | v <- vs', v /= Null] 
+    in toArray $ nub vs'
 
 applyStrategy Concat (Array vs) = 
     let vs' = V.toList vs
@@ -236,7 +236,7 @@ pDirective =
     , AT.string "concat" >> pure Concat 
     , AT.string "nub" >> pure Nub 
     , AT.string "reverse" >> pure Reverse
-    , AT.string "compcat" >> pure Compact
+    , AT.string "compact" >> pure Compact
     , AT.string "head" >> pure Head
     , AT.string "sort" >> (Sort <$> pOrder)
     , AT.string "sortfreq" >> (SortFreq <$> pOrder)
